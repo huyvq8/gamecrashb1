@@ -1,0 +1,336 @@
+# 🎰 Crash Game Platform – Full System Overview
+
+## 1. 🎯 Mục tiêu hệ thống
+
+Xây dựng một nền tảng mini-game crypto (Play-to-Earn) với:
+
+- Game realtime (Crash)
+- Backend authoritative (không trust frontend)
+- Wallet nội bộ (off-chain)
+- Event-driven runtime
+- Có thể mở rộng nhiều game sau này
+
+---
+
+## 2. 🧠 Kiến trúc tổng thể
+
+
+Frontend (React)
+↓ API + WebSocket
+Backend (Fastify + Socket.IO)
+↓
+Game Engine + Runtime Loop
+↓
+Wallet / Ledger (in-memory)
+↓
+Platform Kernel (multi-game framework)
+
+
+---
+
+## 3. 🧩 Thành phần chính
+
+### 3.1 Frontend (Phase 5)
+
+- React + Vite
+- Hiển thị:
+  - Balance
+  - Multiplier realtime
+  - Round state
+  - Bet / Cashout
+  - Recent history
+- Kết nối:
+  - REST API
+  - Socket.IO realtime
+
+---
+
+### 3.2 Backend API (Phase 4)
+
+Endpoints:
+
+
+GET /game/crash/state
+GET /game/crash/history
+POST /game/crash/bet
+POST /game/crash/cashout
+GET /wallet/balance
+GET /ops/crash/debug
+
+
+- Zod validation
+- Error normalization (Phase 6)
+
+---
+
+### 3.3 Realtime Layer
+
+Events:
+
+
+ROUND_CREATED
+BETTING_OPEN
+ROUND_STARTED
+MULTIPLIER_TICK
+CASHOUT_ACCEPTED
+ROUND_CRASHED
+ROUND_SETTLED
+
+
+- Socket.IO
+- Backend là source of truth
+
+---
+
+### 3.4 Game Engine (Phase 2)
+
+Core logic:
+
+- Deterministic RNG (seed-based)
+- Multiplier tăng theo thời gian
+- Crash condition: `current >= crash`
+
+Lifecycle:
+
+
+INIT
+→ BETTING_OPEN
+→ IN_PROGRESS
+→ CRASHED
+→ SETTLED
+
+
+---
+
+### 3.5 Runtime Loop (Phase 4)
+
+`CrashRuntime` chịu trách nhiệm:
+
+- tạo round
+- mở betting
+- đóng betting
+- start round
+- tick multiplier
+- detect crash
+- settle
+- chuyển round mới
+
+---
+
+### 3.6 Money Layer (Phase 3)
+
+Wallet:
+
+- bigint (integer minor units)
+- không dùng float
+
+Operations:
+
+
+DEBIT (bet)
+CREDIT (payout)
+
+
+Đặc điểm:
+
+- idempotent (key-based)
+- ledger ghi lại mọi transaction
+- không double-spend
+
+---
+
+### 3.7 Betting Service
+
+Logic:
+
+- chỉ bet khi `BETTING_OPEN`
+- chỉ cashout khi `IN_PROGRESS`
+- reject:
+  - duplicate cashout
+  - cashout sau crash
+- payout = backend multiplier
+
+---
+
+### 3.8 Platform Framework (Phase 7)
+
+Modules:
+
+- `PlatformGameModule`
+- `PlatformRegistry`
+- `PlatformKernel`
+
+Chức năng:
+
+
+register game
+startAll
+stopAll
+
+
+Crash được wrap qua:
+
+
+createCrashGameModule()
+
+
+→ sẵn sàng thêm game mới (Mines, Hi-Lo…)
+
+---
+
+## 4. 🔐 Nguyên tắc an toàn tiền
+
+- ❌ Không dùng float
+- ✅ bigint cho mọi phép toán
+- ✅ idempotency key:
+  - `bet:debit:<id>`
+  - `payout:credit:<id>`
+- ✅ backend quyết định payout
+- ❌ frontend không được tính toán tiền
+
+---
+
+## 5. ⚙️ State & Consistency
+
+Frontend:
+
+- chỉ hiển thị
+- reconcile với backend khi reconnect
+
+Backend:
+
+- authoritative state
+- event-driven
+
+---
+
+## 6. 🧪 Testing
+
+Backend:
+
+- RNG deterministic
+- lifecycle transitions
+- betting logic
+- idempotency
+- API + realtime order
+
+Frontend:
+
+- render
+- button enable/disable
+- realtime update
+- error handling
+
+---
+
+## 7. ⚠️ Giới hạn hiện tại (MVP)
+
+- in-memory runtime (không persistence)
+- single-process
+- không auth
+- không rate limiting
+- không on-chain settlement
+- chưa có provably fair
+
+---
+
+## 8. 🔥 Risk / Exploit cần lưu ý
+
+- spam bet/cashout
+- race timing near crash
+- websocket abuse
+- restart mất state
+- replay request
+
+---
+
+## 9. 📈 Scaling
+
+| Users | Status |
+|------|--------|
+| 100  | OK |
+| 1,000 | cần optimize |
+| 10,000 | cần scale architecture |
+
+Bottlenecks:
+
+- runtime loop
+- websocket broadcast
+- memory
+
+---
+
+## 10. 🚀 Roadmap tiếp theo
+
+### Phase 9+
+- DB persistence
+- restart recovery
+- auth system
+- rate limiting
+- monitoring
+
+### Phase 10+
+- claim / withdraw (on-chain)
+- provably fair
+
+### Phase 11+
+- multi-game expansion
+- Mines / Hi-Lo
+
+---
+
+## 11. ✅ Checklist trước khi launch tiền thật
+
+### MUST HAVE
+
+- [ ] DB persistence
+- [ ] auth system
+- [ ] rate limiting
+- [ ] restart recovery
+- [ ] monitoring / alert
+- [ ] audit money flow
+
+### CAN WAIT
+
+- UI đẹp
+- multi-game
+- mobile app
+- advanced analytics
+
+---
+
+## 12. 🎯 Kết luận
+
+Hệ thống hiện tại:
+
+
+✔ Playable
+✔ Deterministic
+✔ Money-safe (MVP level)
+✔ Realtime stable
+✔ Extensible
+
+
+Nhưng:
+
+
+❌ Chưa ready cho tiền thật
+
+
+---
+
+## 13. 🧠 Triết lý hệ thống
+
+- Backend là nguồn sự thật
+- Frontend chỉ là UI
+- Money phải deterministic
+- Event phải có thứ tự
+- Không optimize sớm
+- Framework phục vụ game, không ngược lại
+
+---
+
+## 14. 🎮 Trạng thái cuối
+
+
+Idea → System → Playable → Stable → Extensible → (Next: Production)

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Transparent background; all shapes use gradients with alpha -->
+  <defs>
+    <linearGradient id="bodyGrad" x1="256" y1="40" x2="256" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DDE7FF"/>
+      <stop offset="0.55" stop-color="#9DB9FF"/>
+      <stop offset="1" stop-color="#6A82D8"/>
+    </linearGradient>
+    <radialGradient id="windowGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(256 220) rotate(90) scale(70 70)">
+      <stop stop-color="#8EE0FF"/>
+      <stop offset="0.5" stop-color="#43B9FF"/>
+      <stop offset="1" stop-color="#1F5BFF"/>
+    </radialGradient>
+    <linearGradient id="finGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#5A6BFF"/>
+      <stop offset="1" stop-color="#3C49B8"/>
+    </linearGradient>
+    <linearGradient id="noseGrad" x1="256" y1="40" x2="256" y2="130" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7F53FF"/>
+      <stop offset="1" stop-color="#5233C7"/>
+    </linearGradient>
+    <linearGradient id="engineRing" x1="256" y1="380" x2="256" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#36406B"/>
+      <stop offset="1" stop-color="#161C32"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rocket body -->
+  <path d="M256 60C310 120 332 190 332 260C332 340 304 392 256 452C208 392 180 340 180 260C180 190 202 120 256 60Z" fill="url(#bodyGrad)"/>
+  <!-- Mid seam -->
+  <path d="M256 140C310 196 332 242 332 260H180C180 242 202 196 256 140Z" fill="white" fill-opacity="0.08"/>
+
+  <!-- Nose cone -->
+  <path d="M256 40C292 76 312 108 324 138C306 144 281 148 256 148C231 148 206 144 188 138C200 108 220 76 256 40Z" fill="url(#noseGrad)"/>
+
+  <!-- Window bezel -->
+  <circle cx="256" cy="220" r="86" fill="#1B2550" fill-opacity="0.25"/>
+  <!-- Window glass -->
+  <circle cx="256" cy="220" r="64" fill="url(#windowGrad)"/>
+  <circle cx="236" cy="200" r="22" fill="#CFF5FF" fill-opacity="0.8"/>
+
+  <!-- Side fins -->
+  <path d="M180 300C120 312 92 348 84 410C140 392 176 378 212 350C204 330 194 314 180 300Z" fill="url(#finGrad)"/>
+  <path d="M332 300C392 312 420 348 428 410C372 392 336 378 300 350C308 330 318 314 332 300Z" fill="url(#finGrad)"/>
+
+  <!-- Center fin -->
+  <path d="M256 292C276 320 286 350 290 380C278 386 268 388 256 388C244 388 234 386 222 380C226 350 236 320 256 292Z" fill="url(#finGrad)"/>
+
+  <!-- Engine ring -->
+  <rect x="216" y="380" width="80" height="28" rx="8" fill="url(#engineRing)"/>
+
+  <!-- Soft glow around rocket (transparent) -->
+  <ellipse cx="256" cy="260" rx="210" ry="240" fill="#7BC9FF" fill-opacity="0.12"/>
+</svg>
+
