@@ -2,6 +2,7 @@ export * from "./core/games/base/GameEngine";
 export * from "./core/games/base/GameRound";
 export * from "./core/games/base/GameRegistry";
 export * from "./core/games/crash/CrashContracts";
+export * from "./core/games/crash/CrashEngine";
 export * from "./wallet/WalletAdapter";
 export * from "./realtime/RealtimeGateway";
 export * from "./config/gameConfig";
