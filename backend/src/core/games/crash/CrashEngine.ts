@@ -47,6 +47,10 @@ export class CrashEngine implements GameEngine<CrashGameConfig> {
 
   async openBetting(roundId: string): Promise<void> {
     this.roundManager.update(roundId, (round) => {
+      // Explicit idempotent rule: opening an already-open round is a no-op.
+      if (round.status === RoundStatus.BETTING_OPEN) {
+        return round;
+      }
       this.assertTransition(round.status, RoundStatus.BETTING_OPEN);
       return round;
     });
@@ -57,6 +61,9 @@ export class CrashEngine implements GameEngine<CrashGameConfig> {
       if (round.status !== RoundStatus.BETTING_OPEN) {
         throw new Error(`closeBetting is only allowed in ${RoundStatus.BETTING_OPEN}`);
       }
+      if (round.bettingClosedAt) {
+        return round;
+      }
       return {
         ...round,
         bettingClosedAt: new Date()
@@ -66,6 +73,9 @@ export class CrashEngine implements GameEngine<CrashGameConfig> {
 
   async startRound(roundId: string): Promise<void> {
     this.roundManager.update(roundId, (round) => {
+      if (round.status === RoundStatus.IN_PROGRESS) {
+        throw new Error("Round already in progress");
+      }
       this.assertTransition(round.status, RoundStatus.IN_PROGRESS);
 
       return {
@@ -79,6 +89,7 @@ export class CrashEngine implements GameEngine<CrashGameConfig> {
 
   async processTick(roundId: string, now: Date): Promise<void> {
     this.roundManager.update(roundId, (round) => {
+      // Explicit idempotent rule: ticks outside IN_PROGRESS are no-ops.
       if (round.status !== RoundStatus.IN_PROGRESS) {
         return round;
       }
@@ -111,6 +122,9 @@ export class CrashEngine implements GameEngine<CrashGameConfig> {
 
   async settleRound(roundId: string): Promise<void> {
     this.roundManager.update(roundId, (round) => {
+      if (round.status === RoundStatus.SETTLED) {
+        throw new Error("Round already settled");
+      }
       this.assertTransition(round.status, RoundStatus.SETTLED);
       return {
         ...round,

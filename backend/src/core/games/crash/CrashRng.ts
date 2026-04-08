@@ -2,6 +2,7 @@ import type { CrashDistributionBucket, CrashGameConfig } from "./CrashContracts"
 
 const MULTIPLIER_SCALE = 1_000_000n;
 const MAX_U64 = (1n << 64n) - 1n;
+const WEIGHT_SCALE = 1_000_000n;
 
 export interface CrashRng {
   nextCrashMultiplier(): string;
@@ -19,30 +20,59 @@ function scaledToMultiplierString(value: bigint): string {
   return `${whole.toString()}.${decimal.toString().padStart(6, "0")}`;
 }
 
-function ensureValidDistribution(distribution: CrashDistributionBucket[]): void {
-  const totalWeight = distribution.reduce((acc, bucket) => acc + bucket.weight, 0);
-  if (Math.abs(totalWeight - 100) > Number.EPSILON) {
-    throw new Error(`Invalid crash distribution weight total: expected 100, got ${totalWeight}`);
+function weightToScaledInt(weight: number): bigint {
+  if (!Number.isFinite(weight)) {
+    throw new Error("Crash distribution weight must be a finite number");
   }
+  return BigInt(Math.round(weight * Number(WEIGHT_SCALE)));
+}
+
+function ensureValidDistribution(distribution: CrashDistributionBucket[]): bigint {
+  if (distribution.length === 0) {
+    throw new Error("Crash distribution must contain at least one bucket");
+  }
+
+  let total = 0n;
+  for (const bucket of distribution) {
+    const scaledWeight = weightToScaledInt(bucket.weight);
+    if (scaledWeight <= 0n) {
+      throw new Error("Crash distribution weights must be > 0");
+    }
+
+    const min = parseMultiplierToScaled(bucket.minMultiplier);
+    const max = parseMultiplierToScaled(bucket.maxMultiplier);
+    if (max <= min) {
+      throw new Error("Invalid crash distribution bucket bounds");
+    }
+
+    total += scaledWeight;
+  }
+
+  if (total <= 0n) {
+    throw new Error("Crash distribution total weight must be > 0");
+  }
+
+  return total;
 }
 
 export class DeterministicCrashRng implements CrashRng {
   private state: bigint;
   private readonly distribution: CrashDistributionBucket[];
+  private readonly totalWeight: bigint;
 
   constructor(config: CrashGameConfig, seed = "phase2-default-seed") {
-    ensureValidDistribution(config.crashDistribution);
+    this.totalWeight = ensureValidDistribution(config.crashDistribution);
     this.distribution = config.crashDistribution;
     this.state = this.hashSeed(seed);
   }
 
   nextCrashMultiplier(): string {
-    const weightPoint = this.nextInteger(100);
-    let cursor = 0;
+    const weightPoint = this.nextUInt64() % this.totalWeight;
+    let cursor = 0n;
     let selected = this.distribution[this.distribution.length - 1];
 
     for (const bucket of this.distribution) {
-      cursor += bucket.weight;
+      cursor += weightToScaledInt(bucket.weight);
       if (weightPoint < cursor) {
         selected = bucket;
         break;
@@ -51,10 +81,6 @@ export class DeterministicCrashRng implements CrashRng {
 
     const min = parseMultiplierToScaled(selected.minMultiplier);
     const max = parseMultiplierToScaled(selected.maxMultiplier);
-    if (max <= min) {
-      throw new Error("Invalid crash distribution bucket bounds");
-    }
-
     const range = max - min;
     const offset = (this.nextUInt64() * range) / MAX_U64;
     const outcome = min + offset;
@@ -85,16 +111,13 @@ export class DeterministicCrashRng implements CrashRng {
     return this.state;
   }
 
-  private nextInteger(maxExclusive: number): number {
-    if (maxExclusive <= 0) {
-      throw new Error("maxExclusive must be positive");
-    }
-    return Number(this.nextUInt64() % BigInt(maxExclusive));
-  }
 }
 
 export const crashRngInternals = {
   MULTIPLIER_SCALE,
+  WEIGHT_SCALE,
+  weightToScaledInt,
+  ensureValidDistribution,
   parseMultiplierToScaled,
   scaledToMultiplierString
 };

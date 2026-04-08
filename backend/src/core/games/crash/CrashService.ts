@@ -1,2 +1,5 @@
-// Phase 1 placeholder: service orchestration intentionally deferred.
-export class CrashService {}
+export class CrashService {
+  constructor() {
+    throw new Error("CrashService orchestration is intentionally out of scope through Phase 2");
+  }
+}
