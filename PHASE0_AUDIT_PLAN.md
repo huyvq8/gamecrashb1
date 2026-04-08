@@ -24,15 +24,38 @@ Rationale:
 - Strong typing and schema safety across API, realtime, and persistence.
 - SQLite is sufficient for MVP while retaining an easy migration path to PostgreSQL.
 
+## Architecture decisions (explicit)
+
+1. **Fastify over Express/Nest**
+   - Fastify provides strong performance, typed schema integration, and a thin abstraction suitable for explicit, testable service boundaries.
+   - Express is viable but requires more manual typing/validation discipline for the same guardrails.
+   - Nest is powerful but introduces higher framework overhead for a greenfield MVP where explicit module ownership is preferred.
+
+2. **Socket.IO over native `ws`**
+   - Socket.IO gives reliable reconnect semantics, room-based fanout, and event namespacing out of the box.
+   - Native `ws` is lighter, but would require building reliability/reconnect/session conventions manually for the same operator experience.
+
+3. **Prisma + SQLite for MVP**
+   - Prisma provides typed client access, migrations, and transactional API safety suitable for money-affecting state updates.
+   - SQLite reduces operational setup for MVP while still supporting transactional correctness.
+   - Schema/migration design will stay PostgreSQL-compatible to allow a straightforward promotion path.
+
+4. **Modular monolith over microservices**
+   - Current scope is one real-time game with strict consistency requirements; cross-service split would add avoidable operational and consistency complexity.
+   - A modular monolith preserves clear boundaries (`core`, `wallet`, `realtime`, `api`, `db`) while keeping round/bet/cashout consistency in-process.
+   - Extraction to services remains possible later once load and domain boundaries justify it.
+
 ## High-level architecture plan
 
 ### Monorepo layout
 
 ```text
-/backend
-/frontend
-/shared
-/docs
+/workspace/gamecrashb1
+  /backend
+  /frontend
+  /shared
+  /docs
+  PHASE0_AUDIT_PLAN.md
 ```
 
 ### Backend module boundaries
@@ -49,6 +72,37 @@ Rationale:
   /api                 # route handlers and request validation
   /db                  # prisma client + repositories
   /admin               # lightweight game config/ops endpoints
+```
+
+### Frontend folder plan (Phase 5 target)
+
+```text
+/frontend/src
+  /components
+    CrashGame.tsx
+    BetPanel.tsx
+    MultiplierDisplay.tsx
+    RoundTimeline.tsx
+    RecentRounds.tsx
+    BalancePanel.tsx
+  /lib
+    apiClient.ts
+    socketClient.ts
+  /types
+  main.tsx
+```
+
+### Shared contracts folder plan
+
+```text
+/shared/src
+  /contracts
+    api.ts
+    events.ts
+    rounds.ts
+    bets.ts
+    wallet.ts
+  index.ts
 ```
 
 ### Data model (MVP)
@@ -77,6 +131,19 @@ Rationale:
 - Cashout accepted only while `IN_PROGRESS` and before crash boundary
 - Idempotent/atomic bet state transitions to prevent duplicate cashouts
 
+### Explicit state machine rules
+
+- Allowed transitions:
+  - `BETTING_OPEN -> IN_PROGRESS`
+  - `IN_PROGRESS -> CRASHED`
+  - `CRASHED -> SETTLED`
+- Forbidden transitions:
+  - `BETTING_OPEN -> CRASHED` (must pass through `IN_PROGRESS`)
+  - `BETTING_OPEN -> SETTLED`
+  - `IN_PROGRESS -> SETTLED` (must pass through `CRASHED`)
+  - Any transition out of `SETTLED`
+- Any invalid transition request must be rejected and logged as an error-level game event.
+
 ## Economics and fairness plan
 
 - Config-driven crash distribution with weighted buckets:
@@ -88,6 +155,47 @@ Rationale:
 - House edge configurable and applied in crash generation strategy layer
 - Dedicated `CrashRng` module with testable seeded RNG abstraction
 - Placeholder fairness fields for server seed hash / future commit-reveal flow
+
+## Money-safety decisions
+
+- No floating-point arithmetic for bet, payout, balance, or ledger writes.
+- Canonical amount representation: integer minor units (`bigint` in domain logic, persisted as integer-compatible columns/strings as needed by ORM constraints).
+- Multiplier math may use decimal library for deterministic rounding, but final payouts are converted with explicit rounding policy to minor units before persistence.
+- Idempotency requirements:
+  - `reserveOrDebitBet(user_id, amount, bet_id)` must be idempotent by `bet_id`.
+  - `creditPayout(user_id, amount, payout_id)` must be idempotent by `payout_id`.
+  - Duplicate cashout requests must return prior terminal result without creating duplicate credits.
+- Every money mutation must emit matching ledger and telemetry entries.
+
+## Race-condition strategy
+
+- Server-authoritative timing rule:
+  - All decisions use server time only; client timestamps are ignored for settlement truth.
+- Cashout vs crash boundary:
+  - A cashout is valid only if processed before server-observed crash boundary for the active round.
+  - If boundary is reached first, bet transitions to `LOST` and cashout is rejected.
+- Atomic update approach:
+  - Cashout uses conditional atomic update (`status=ACTIVE` precondition) in a DB transaction.
+  - Crash resolution atomically marks remaining `ACTIVE` bets as `LOST`.
+  - Transaction ordering ensures one terminal bet outcome: `CASHED_OUT` or `LOST`, never both.
+
+## Config ownership decisions
+
+- Source of truth location: backend config module (`/backend/src/config/gameConfig.ts`) with schema validation at process startup.
+- Runtime tunables (house edge, min/max bet, timing windows, crash distribution buckets) are loaded from config and exposed read-only to engine modules.
+- Each round snapshots effective config (`config_snapshot`) into persistent round record to guarantee replayability/auditability even if live config later changes.
+
+## Fairness placeholder design
+
+- Fields stored now per round:
+  - `rng_seed_ref` (opaque seed identifier/reference)
+  - `server_seed_hash` (optional commit hash placeholder)
+  - `fairness_version` (algorithm/version tag)
+  - `config_snapshot` (inputs used for outcome generation)
+- Future commit-reveal extension path:
+  - Pre-round: publish `hash(server_seed)` as commitment.
+  - Post-round/periodic: reveal `server_seed` and optional `client_seed` mixing strategy.
+  - Verification tool recomputes crash outcome from revealed seeds + versioned algorithm and compares against stored `crash_multiplier`.
 
 ## Delivery plan by phase
 
@@ -106,18 +214,21 @@ Rationale:
 - No database schema or migrations implemented yet.
 - No tests implemented yet.
 
-## Planned run/test commands for upcoming phases
+## Phase 0 run/test commands (audit only)
 
-Bootstrap/run (after Phase 1+ setup):
+Runtime commands are **N/A in Phase 0** because no backend/frontend project scaffolding exists yet.
+
+Executed inspection commands:
 
 ```bash
-pnpm install
-pnpm -r build
-pnpm --filter backend dev
-pnpm --filter frontend dev
+pwd && rg --files | head -n 50
+find .. -maxdepth 3 -name AGENTS.md -print
+ls -la
+git status --short && git branch --show-current
+nl -ba PHASE0_AUDIT_PLAN.md | sed -n '1,220p'
 ```
 
-Test commands (to be enabled by Phase 2+):
+Future test commands (post-implementation phases):
 
 ```bash
 pnpm --filter backend test
