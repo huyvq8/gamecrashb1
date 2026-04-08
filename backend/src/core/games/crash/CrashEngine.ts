@@ -142,6 +142,10 @@ export class CrashEngine implements GameEngine<CrashGameConfig> {
     return this.roundManager.getActiveRound();
   }
 
+  getRoundSnapshot(roundId: string): ManagedCrashRound {
+    return this.roundManager.get(roundId);
+  }
+
   private assertTransition(from: RoundStatus, to: RoundStatus): void {
     if (from === to) {
       return;
