@@ -7,8 +7,9 @@ async function bootstrap(): Promise<void> {
   let shuttingDown = false;
 
   try {
-    await app.listen({ port: 3000, host: "0.0.0.0" });
-    console.log("Server running on port 3000");
+    const port = Number(process.env.PORT ?? process.env.HTTP_PORT ?? 3000);
+    await app.listen({ port, host: "0.0.0.0" });
+    console.log(`Server running on port ${port}`);
 
     await kernel.startAll();
     runtimeStarted = true;

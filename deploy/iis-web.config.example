@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  IIS: URL Rewrite + Application Request Routing (ARR) reverse proxy.
+  Cài: IIS + URL Rewrite module + ARR (bật proxy trong ARR server settings).
+
+  Giả sử PM2:
+    - API:  http://127.0.0.1:2000
+    - Web:  http://127.0.0.1:2001  (vite preview, đã proxy /game → 2000)
+
+  Cách 1 — Chỉ proxy về crash-web :2001 (khuyến nghị đơn giản):
+    Toàn bộ site → 2001; trình duyệt chỉ gọi cùng host, Vite preview forward /game,/wallet,/socket.io → 2000.
+
+  Cách 2 — Tách path (không dùng proxy trong Vite):
+    /game*, /wallet*, /ops*, /socket.io* → 2000
+    /* → 2001 (SPA)
+
+  File này minh hoạ Cách 1 (một rule duy nhất tới frontend).
+-->
+<configuration>
+  <system.webServer>
+    <rewrite>
+      <rules>
+        <rule name="Crash-SPA-and-API-via-VitePreview" stopProcessing="true">
+          <match url="(.*)" />
+          <action type="Rewrite" url="http://127.0.0.1:2001/{R:1}" />
+          <serverVariables>
+            <set name="HTTP_ACCEPT_ENCODING" value="" />
+          </serverVariables>
+        </rule>
+      </rules>
+      <allowedServerVariables>
+        <add name="HTTP_ACCEPT_ENCODING" />
+      </allowedServerVariables>
+    </rewrite>
+  </system.webServer>
+</configuration>
