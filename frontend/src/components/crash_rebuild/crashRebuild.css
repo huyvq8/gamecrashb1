@@ -1,0 +1,14 @@
+.crash-screen-rebuild { display: grid; gap: 12px; }
+.crash-center-wrap { position: relative; min-height: 220px; display: grid; place-items: center; }
+.crash-center { font-size: 56px; font-weight: 800; }
+.crash-countdown { color: #ffffff; }
+.crash-multiplier { color: #7ef5a9; }
+.crash-bottom-dock { display: grid; gap: 8px; }
+.money-capsule, .bet-tray { display: flex; justify-content: space-between; }
+.chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.main-action { min-height: 48px; font-weight: 700; }
+.crash-history .history-row { display: flex; gap: 8px; }
+.tier-low { color: #ddd; }
+.tier-mid { color: #89c3ff; }
+.tier-high { color: #f3d05f; }
+.crash-error { color: #ff8f8f; font-size: 14px; }
