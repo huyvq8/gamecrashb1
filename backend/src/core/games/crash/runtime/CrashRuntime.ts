@@ -33,7 +33,7 @@ export class CrashRuntime {
   stop(): void {
     this.running = false;
     if (this.loopTimer) clearTimeout(this.loopTimer);
-    if (this.tickTimer) clearInterval(this.tickTimer);
+    if (this.tickTimer) clearTimeout(this.tickTimer);
     this.loopTimer = null;
     this.tickTimer = null;
     this.currentRoundId = null;
@@ -112,38 +112,69 @@ export class CrashRuntime {
     return roundId;
   }
 
+  private tickDelayForMultiplier(multiplier: string): number {
+    const base = this.config.tickIntervalMs;
+    const m = Number(multiplier);
+    if (!Number.isFinite(m) || m < 1) return base;
+    // Higher X → shorter delay (exponential curve needs tighter ticks so crash/cashout stay fair).
+    const factor =
+      m < 2 ? 1 : m < 4 ? 0.82 : m < 10 ? 0.62 : m < 25 ? 0.42 : m < 60 ? 0.28 : m < 150 ? 0.2 : 0.14;
+    return Math.max(28, Math.round(base * factor));
+  }
+
+  private async runTickStep(roundId: string): Promise<void> {
+    if (!this.running) return;
+
+    const now = new Date();
+    await this.engine.processTick(roundId, now);
+    const snapshot = this.engine.getRoundSnapshot(roundId);
+
+    if (snapshot.status === RoundStatus.IN_PROGRESS) {
+      const elapsedMs = BigInt(Math.max(0, now.getTime() - (snapshot.startTimeMs ?? now.getTime())));
+      const multiplier = multiplierAtElapsedMs(elapsedMs);
+      await this.realtime.publishEvent("MULTIPLIER_TICK", { roundId, multiplier, serverTime: now.toISOString() });
+      const delay = this.tickDelayForMultiplier(multiplier);
+      this.tickTimer = setTimeout(() => {
+        void this.runTickStep(roundId);
+      }, delay);
+      return;
+    }
+
+    if (snapshot.status === RoundStatus.CRASHED) {
+      this.tickTimer = null;
+      await this.finalizeRound(roundId);
+    } else {
+      this.tickTimer = null;
+    }
+  }
+
   private async startTickLoop(roundId: string): Promise<void> {
-    this.tickTimer = setInterval(async () => {
-      const now = new Date();
-      await this.engine.processTick(roundId, now);
-      const snapshot = this.engine.getRoundSnapshot(roundId);
-
-      if (snapshot.status === RoundStatus.IN_PROGRESS) {
-        const elapsedMs = BigInt(Math.max(0, now.getTime() - (snapshot.startTimeMs ?? now.getTime())));
-        const multiplier = multiplierAtElapsedMs(elapsedMs);
-        await this.realtime.publishEvent("MULTIPLIER_TICK", { roundId, multiplier, serverTime: now.toISOString() });
-        return;
-      }
-
-      if (snapshot.status === RoundStatus.CRASHED) {
-        if (this.tickTimer) clearInterval(this.tickTimer);
-        this.tickTimer = null;
-        await this.finalizeRound(roundId);
-      }
-    }, this.config.tickIntervalMs);
+    if (this.tickTimer) {
+      clearTimeout(this.tickTimer);
+      this.tickTimer = null;
+    }
+    void this.runTickStep(roundId);
   }
 
   private async runTicksUntilCrash(roundId: string): Promise<void> {
+    const started = this.engine.getRoundSnapshot(roundId);
+    const startMs = started.startTimeMs;
+    if (startMs === null) {
+      throw new Error("runTicksUntilCrash: round has no startTimeMs");
+    }
+    /** Advance simulated clock (do not rely on wall clock — exponential curve needs many ms to hit crash). */
+    const STEP_MS = 100n;
+    let simElapsedMs = 0n;
     while (true) {
-      const now = new Date(Date.now() + 1000);
+      simElapsedMs += STEP_MS;
+      const now = new Date(Number(BigInt(startMs) + simElapsedMs));
       await this.engine.processTick(roundId, now);
       const snapshot = this.engine.getRoundSnapshot(roundId);
 
       if (snapshot.status === RoundStatus.IN_PROGRESS) {
-        const elapsedMs = BigInt(Math.max(0, now.getTime() - (snapshot.startTimeMs ?? now.getTime())));
         await this.realtime.publishEvent("MULTIPLIER_TICK", {
           roundId,
-          multiplier: multiplierAtElapsedMs(elapsedMs),
+          multiplier: multiplierAtElapsedMs(simElapsedMs),
           serverTime: now.toISOString()
         });
         continue;
@@ -159,9 +190,9 @@ export class CrashRuntime {
     const crashed = this.engine.getRoundSnapshot(roundId);
     await this.bettingService.markRoundLosses(roundId);
 
-    // Compute and store the cooldown end upfront so clients can start countdown immediately.
-    const cooldownMs = 10_000;
-    this.nextRoundStartsAt = new Date(Date.now() + cooldownMs);
+    // Next round starts immediately after settle (no idle cooldown). Clients use normal betting window countdown.
+    const cooldownMs = 0;
+    this.nextRoundStartsAt = new Date();
 
     await this.realtime.publishEvent("ROUND_CRASHED", {
       roundId,
@@ -190,8 +221,8 @@ export class CrashRuntime {
     });
 
     if (this.running) {
-      this.loopTimer = setTimeout(async () => {
-        await this.beginNextRound();
+      this.loopTimer = setTimeout(() => {
+        void this.beginNextRound();
       }, cooldownMs);
     }
   }

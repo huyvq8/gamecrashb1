@@ -1,39 +1,57 @@
 @echo off
 setlocal ENABLEDELAYEDEXPANSION
 
-REM Paths
-set "ROOT=F:\GameB\gamecrashb1"
-set "BACKEND=%ROOT%\backend"
-set "FRONTEND=%ROOT%\frontend"
+REM Thu muc chua file .bat (di chuyen project van chay duoc)
+set "ROOT=%~dp0"
+if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
+
+cd /d "%ROOT%" || (
+  echo Khong the cd vao: %ROOT%
+  exit /b 1
+)
+
+where pnpm >nul 2>nul || (
+  echo Can cai pnpm: npm install -g pnpm
+  echo Hoac: corepack enable ^&^& corepack prepare pnpm@10.0.0 --activate
+  pause
+  exit /b 1
+)
 
 echo.
-echo === Crash Game: Start Backend and Frontend ===
+echo === Game Crash B1: Backend + Frontend ===
 echo Root: %ROOT%
+echo API/Socket proxy: http://localhost:3000
+echo Giao dien:        http://localhost:5173
 echo.
 
-REM Optional: bootstrap installs in separate windows if node_modules is missing
-if not exist "%BACKEND%\node_modules" (
-  start "Install Backend Deps" /D "%BACKEND%" cmd /K "npm install --no-audit --no-fund"
+if not exist "%ROOT%\node_modules\" (
+  echo Dang cai dependencies lan dau...
+  pnpm install
+  if errorlevel 1 (
+    echo pnpm install that bai.
+    pause
+    exit /b 1
+  )
 )
-if not exist "%FRONTEND%\node_modules" (
-  start "Install Frontend Deps" /D "%FRONTEND%" cmd /K "npm install --no-audit --no-fund"
-)
 
-REM Start Backend (Fastify on port 3000)
-echo Starting Backend...
-start "Crash Backend" /D "%BACKEND%" cmd /K "npm run dev"
+echo Khoi dong Backend (Fastify + Socket.IO)...
+start "GameCrash Backend" /D "%ROOT%" cmd /K "pnpm --filter @gamecrash/backend dev"
 
-REM Start Frontend (Vite dev server)
-echo Starting Frontend...
-start "Crash Frontend" /D "%FRONTEND%" cmd /K "npm run dev -- --open"
+REM Doi backend len port 3000
+ping -n 4 127.0.0.1 >nul
+
+echo Khoi dong Frontend (Vite)...
+start "GameCrash Frontend" /D "%ROOT%" cmd /K "pnpm --filter @gamecrash/frontend dev"
+
+ping -n 6 127.0.0.1 >nul
+
+echo Mo trinh duyet...
+start "" "http://localhost:5173/"
 
 echo.
-echo Launched two terminals:
-echo  - Crash Backend (http://localhost:3000)
-echo  - Crash Frontend (Vite dev server)
+echo Da mo 2 cua so: Backend va Frontend.
+echo Dong tung cua so de tat dich vu tuong ung.
 echo.
-echo Close this window if you don't need it.
-
+pause
 endlocal
-exit /B 0
-
+exit /b 0

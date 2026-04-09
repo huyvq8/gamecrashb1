@@ -1,7 +1,12 @@
 import type { LedgerEntryType } from "./BalanceLedger";
 import type { WalletAdapter } from "./WalletAdapter";
 import { InsufficientBalanceError } from "./WalletErrors";
-import { buildBetDebitIdempotencyKey, buildPayoutCreditIdempotencyKey } from "./WalletIdempotency";
+import {
+  buildBetDebitIdempotencyKey,
+  buildBetRefundCreditIdempotencyKey,
+  buildDepositCreditIdempotencyKey,
+  buildPayoutCreditIdempotencyKey
+} from "./WalletIdempotency";
 
 interface WalletBalanceRecord {
   userId: string;
@@ -20,7 +25,8 @@ interface InMemoryLedgerEntry {
   createdAt: Date;
 }
 
-const DEFAULT_TEST_BALANCE_MINOR = 10_000n;
+/** Demo balance: 10_000 UI units if frontend uses ÷100 (matches runtimeConfig.minorUnitsPerDisplay). */
+const DEFAULT_TEST_BALANCE_MINOR = 1_000_000n;
 
 function parseMinorUnits(value: string): bigint {
   if (!/^\d+$/.test(value)) {
@@ -34,6 +40,7 @@ export class InMemoryWalletAdapter implements WalletAdapter {
   private readonly ledger: InMemoryLedgerEntry[] = [];
   private readonly debitIdempotency = new Map<string, InMemoryLedgerEntry>();
   private readonly creditIdempotency = new Map<string, InMemoryLedgerEntry>();
+  private readonly depositIdempotency = new Map<string, InMemoryLedgerEntry>();
   private ledgerSequence = 0;
 
   seedBalance(userId: string, balanceMinor: string): void {
@@ -74,6 +81,28 @@ export class InMemoryWalletAdapter implements WalletAdapter {
     this.debitIdempotency.set(betId, entry);
   }
 
+  async refundBetDebit(userId: string, betId: string): Promise<void> {
+    const debitEntry = this.debitIdempotency.get(betId);
+    if (!debitEntry) {
+      throw new Error(`No bet debit to refund: ${betId}`);
+    }
+
+    const amount = parseMinorUnits(debitEntry.amountMinor);
+    const balanceRecord = this.getOrCreateBalance(userId);
+    balanceRecord.balanceMinor += amount;
+    this.debitIdempotency.delete(betId);
+
+    this.createLedgerEntry({
+      userId,
+      roundId: null,
+      betId,
+      cashoutId: null,
+      entryType: "CREDIT",
+      amountMinor: amount.toString(),
+      idempotencyKey: buildBetRefundCreditIdempotencyKey(betId)
+    });
+  }
+
   async creditPayout(userId: string, amountMinor: string, payoutId: string): Promise<void> {
     const amount = parseMinorUnits(amountMinor);
     if (amount <= 0n) {
@@ -98,6 +127,28 @@ export class InMemoryWalletAdapter implements WalletAdapter {
     });
 
     this.creditIdempotency.set(payoutId, entry);
+  }
+
+  async creditDeposit(userId: string, amountMinor: string, depositId: string): Promise<void> {
+    const amount = parseMinorUnits(amountMinor);
+    if (amount <= 0n) {
+      throw new Error("Deposit amount must be greater than zero");
+    }
+    if (this.depositIdempotency.has(depositId)) {
+      return;
+    }
+    const balanceRecord = this.getOrCreateBalance(userId);
+    balanceRecord.balanceMinor += amount;
+    const entry = this.createLedgerEntry({
+      userId,
+      roundId: null,
+      betId: `deposit:${depositId}`,
+      cashoutId: null,
+      entryType: "CREDIT",
+      amountMinor: amount.toString(),
+      idempotencyKey: buildDepositCreditIdempotencyKey(depositId)
+    });
+    this.depositIdempotency.set(depositId, entry);
   }
 
   async getLedgerEntries(filters?: { userId?: string; roundId?: string; entryType?: "DEBIT" | "CREDIT" }): Promise<unknown[]> {

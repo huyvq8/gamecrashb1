@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -22,6 +23,12 @@ const cashoutBodySchema = z.object({
 
 const balanceQuerySchema = z.object({
   userId: z.string().min(1)
+});
+
+const depositBodySchema = z.object({
+  userId: z.string().min(1),
+  amountMinor: z.string().regex(/^\d+$/),
+  clientRequestId: z.string().min(1).optional()
 });
 
 const ledgerEntrySchema = z.object({
@@ -84,6 +91,25 @@ export function createServer(deps: {
     }
   });
 
+  app.post("/game/crash/bet/replace", async (request, reply) => {
+    const parsed = betBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      deps.rejectionTracker.increment("bet_replace_invalid_payload");
+      return reply.status(400).send({ error: "invalid_payload", message: parsed.error.message });
+    }
+
+    try {
+      const bet = await deps.bettingService.replaceBet(parsed.data);
+      return reply.status(200).send({ bet });
+    } catch (error) {
+      if (error instanceof BetValidationError) {
+        deps.rejectionTracker.increment(`bet_replace_rejected:${error.message}`);
+        return reply.status(409).send({ error: "bet_rejected", message: error.message });
+      }
+      throw error;
+    }
+  });
+
   app.post("/game/crash/cashout", async (request, reply) => {
     const parsed = cashoutBodySchema.safeParse(request.body);
     if (!parsed.success) {
@@ -130,6 +156,17 @@ export function createServer(deps: {
       balanceMinor,
       ledgerEntries: ledgerEntries.success ? ledgerEntries.data : []
     };
+  });
+
+  app.post("/wallet/deposit", async (request, reply) => {
+    const parsed = depositBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_payload", message: parsed.error.message });
+    }
+    const depositId = parsed.data.clientRequestId ?? randomUUID();
+    await deps.wallet.creditDeposit(parsed.data.userId, parsed.data.amountMinor, depositId);
+    const balanceMinor = await deps.wallet.getBalance(parsed.data.userId);
+    return reply.status(200).send({ userId: parsed.data.userId, balanceMinor });
   });
 
   app.get("/ops/crash/debug", async () => {

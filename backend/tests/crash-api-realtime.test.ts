@@ -148,12 +148,14 @@ describe("Phase 4 API + realtime", () => {
   it("CASHOUT_ACCEPTED cannot happen after crash", async () => {
     const { app, runtime, realtime } = await setup();
     await runtime.runSingleLifecycleForTest();
-    const state = (await app.inject({ method: "GET", url: "/game/crash/state" })).json();
+    const history = (await app.inject({ method: "GET", url: "/game/crash/history" })).json();
+    const settledRoundId = history.rounds[0]?.roundId as string | undefined;
+    expect(settledRoundId).toBeTruthy();
 
     const res = await app.inject({
       method: "POST",
       url: "/game/crash/cashout",
-      payload: { userId: "u1", roundId: state.activeRound?.roundId ?? "missing" }
+      payload: { userId: "u1", roundId: settledRoundId }
     });
 
     expect(res.statusCode).toBe(409);

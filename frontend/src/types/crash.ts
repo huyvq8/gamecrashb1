@@ -30,6 +30,11 @@ export interface WalletBalanceResponse {
   ledgerEntries: Array<Record<string, unknown>>;
 }
 
+export interface WalletDepositResponse {
+  userId: string;
+  balanceMinor: string;
+}
+
 export interface BetRecord {
   betId: string;
   roundId: string;
@@ -42,6 +47,7 @@ export interface BetRecord {
 
 export interface CrashRealtimeEvent {
   roundId?: string;
+  userId?: string;
   multiplier?: string;
   cashoutMultiplier?: string;
   payoutAmountMinor?: string;

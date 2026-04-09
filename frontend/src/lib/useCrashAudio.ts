@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { RoundStatus } from "../types/crash";
+import { engineFrequencyHz, engineGainForMultiplier } from "./multiplierFeel";
 
 type AudioState = RoundStatus | "IDLE";
 
@@ -59,7 +60,11 @@ function createAudioBank(): AudioBank | null {
   return { ctx, countdownBuffer, engineStartBuffer, explosionBuffer, engineLoopGain, engineLoopOsc };
 }
 
-export function useCrashAudio(roundStatus: AudioState, countdownValue: number): void {
+export function useCrashAudio(
+  roundStatus: AudioState,
+  countdownValue: number,
+  liveMultiplier?: string | null
+): void {
   const bankRef = useRef<AudioBank | null>(null);
   const prevRoundStatus = useRef<AudioState>("IDLE");
   const prevCountdown = useRef<number>(countdownValue);
@@ -126,4 +131,25 @@ export function useCrashAudio(roundStatus: AudioState, countdownValue: number): 
 
     prevRoundStatus.current = roundStatus;
   }, [roundStatus]);
+
+  useEffect(() => {
+    const bank = bankRef.current;
+    if (!bank || bank.ctx.state !== "running") return;
+
+    const t = bank.ctx.currentTime;
+    if (roundStatus !== "IN_PROGRESS") {
+      bank.engineLoopOsc.frequency.exponentialRampToValueAtTime(120, t + 0.16);
+      return;
+    }
+
+    const raw = Number(liveMultiplier ?? "1");
+    const m = Number.isFinite(raw) && raw >= 1 ? raw : 1;
+    const hz = engineFrequencyHz(m);
+    const gain = engineGainForMultiplier(m);
+    bank.engineLoopOsc.frequency.exponentialRampToValueAtTime(Math.max(72, hz), t + 0.09);
+    const g = bank.engineLoopGain.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(gain, t + 0.09);
+  }, [roundStatus, liveMultiplier]);
 }

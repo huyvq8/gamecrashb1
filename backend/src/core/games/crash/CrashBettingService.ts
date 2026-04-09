@@ -91,6 +91,68 @@ export class CrashBettingService {
     return record;
   }
 
+  /**
+   * Change stake for an existing ACTIVE bet while the round is still BETTING_OPEN.
+   * Refunds the old debit and applies the new one (same betId).
+   */
+  async replaceBet(input: { userId: string; roundId: string; amountMinor: string }): Promise<CrashBetRecord> {
+    const amountMinor = parseMinorUnits(input.amountMinor);
+    const minBet = parseMinorUnits(this.config.minBetMinor);
+    const maxBet = parseMinorUnits(this.config.maxBetMinor);
+
+    if (amountMinor <= 0n) {
+      throw new BetValidationError("Bet amount must be greater than zero");
+    }
+    if (amountMinor < minBet) {
+      throw new BetValidationError("Bet amount below minimum");
+    }
+    if (amountMinor > maxBet) {
+      throw new BetValidationError("Bet amount above maximum");
+    }
+
+    const round = this.engine.getRoundSnapshot(input.roundId);
+    if (round.status !== RoundStatus.BETTING_OPEN) {
+      throw new BetValidationError("Betting window closed");
+    }
+
+    if (round.bettingCloseAt.getTime() <= Date.now() || round.bettingClosedAt) {
+      throw new BetValidationError("Betting window closed");
+    }
+
+    const existing = await this.betRepository.getActiveBet(input.userId, input.roundId);
+    if (!existing) {
+      throw new BetValidationError("No active bet to replace");
+    }
+
+    if (existing.amountMinor === amountMinor.toString()) {
+      return existing;
+    }
+
+    const previousAmountMinor = existing.amountMinor;
+
+    await this.wallet.refundBetDebit(input.userId, existing.betId);
+    try {
+      await this.wallet.reserveOrDebitBet(input.userId, amountMinor.toString(), existing.betId);
+    } catch (error) {
+      try {
+        await this.wallet.reserveOrDebitBet(input.userId, previousAmountMinor, existing.betId);
+      } catch {
+        // Best-effort restore; wallet may be inconsistent — surface original error
+      }
+      if (error instanceof InsufficientBalanceError) {
+        throw new BetValidationError("Insufficient balance");
+      }
+      throw error;
+    }
+
+    const updated: CrashBetRecord = {
+      ...existing,
+      amountMinor: amountMinor.toString()
+    };
+    await this.betRepository.updateBet(updated);
+    return updated;
+  }
+
   async requestCashout(input: { userId: string; roundId: string; requestTime: Date }): Promise<CrashBetRecord> {
     const round = this.engine.getRoundSnapshot(input.roundId);
     if (round.status !== RoundStatus.IN_PROGRESS) {

@@ -1,4 +1,4 @@
-import React from "react";
+import { useMemo } from "react";
 import type { HistoryItem } from "./useCrashUiModel";
 
 function colorClassForMultiplier(m: number): string {
@@ -8,11 +8,30 @@ function colorClassForMultiplier(m: number): string {
   return "hx-tier-4";
 }
 
-function Pill({ value }: { value: string | null }) {
+/** `items` is already newest-first from the model — slice only, no re-sort. */
+function Pill({
+  value,
+  isLatest,
+  tier
+}: {
+  value: string | null;
+  isLatest?: boolean;
+  /** expanded row2 = older archive */
+  tier?: "older";
+}) {
   const n = value ? Number(value) : null;
   const cls = n ? colorClassForMultiplier(n) : "hx-tier-1";
-  const text = n ? `${n.toFixed(2)}x` : "-";
-  return <div className={`history-pill ${cls}`}>{text}</div>;
+  const text = n ? `${n.toFixed(2)}x` : "—";
+  const extra = [isLatest ? "history-pill--latest" : "", tier === "older" ? "history-pill--older" : ""].filter(Boolean).join(" ");
+  return (
+    <div
+      className={`history-pill ${cls}${extra ? ` ${extra}` : ""}`}
+      aria-current={isLatest ? "true" : undefined}
+      data-latest={isLatest ? "true" : undefined}
+    >
+      {text}
+    </div>
+  );
 }
 
 export function CrashHistory(props: {
@@ -21,19 +40,46 @@ export function CrashHistory(props: {
   onToggle: () => void;
 }) {
   const { items, expanded, onToggle } = props;
-  const limit = expanded ? 16 : 4;
-  const view = items.slice(0, limit);
+  const limit = expanded ? 16 : 6;
+  const view = useMemo(() => items.slice(0, limit), [items, limit]);
+
   return (
-    <div className="crash-history">
-      <div className={`history-grid ${expanded ? "expanded" : "compact"}`}>
-        {view.map((it) => (
-          <Pill key={it.roundId} value={it.finalMultiplier} />
-        ))}
+    <div className="crash-history" data-expanded={expanded ? "true" : undefined}>
+      <div className="crash-history__pills">
+        {!expanded ? (
+          <div className="history-grid history-grid--compact">
+            {view.map((it, i) => (
+              <Pill key={it.roundId} value={it.finalMultiplier} isLatest={i === 0} />
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="history-grid history-grid--expanded-r1">
+              {view.slice(0, 8).map((it, i) => (
+                <Pill key={it.roundId} value={it.finalMultiplier} isLatest={i === 0} />
+              ))}
+            </div>
+            {view.length > 8 ? (
+              <div className="history-grid history-grid--expanded-r2">
+                {view.slice(8, 16).map((it) => (
+                  <Pill key={it.roundId} value={it.finalMultiplier} tier="older" />
+                ))}
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
-      <button className="history-expand" onClick={onToggle} aria-label="toggle history">
-        {expanded ? "−" : "+"}
+      <button
+        type="button"
+        className="history-expand"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        aria-label={expanded ? "Collapse round history" : "Expand round history"}
+      >
+        <span className="history-expand__icon" aria-hidden>
+          {expanded ? "−" : "+"}
+        </span>
       </button>
     </div>
   );
 }
-

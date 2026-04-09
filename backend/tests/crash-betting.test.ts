@@ -55,6 +55,42 @@ describe("Crash betting and wallet flows", () => {
     await expect(service.placeBet({ userId: "u1", roundId, amountMinor: "100000001" })).rejects.toBeInstanceOf(BetValidationError);
   });
 
+  it("replaces stake during BETTING_OPEN with same betId and correct net balance", async () => {
+    const { service, roundId, wallet, repo } = await buildContext();
+
+    const bet = await service.placeBet({ userId: "u1", roundId, amountMinor: "1000" });
+    const balAfterPlace = BigInt(await wallet.getBalance("u1"));
+
+    const updated = await service.replaceBet({ userId: "u1", roundId, amountMinor: "5000" });
+    expect(updated.betId).toBe(bet.betId);
+    expect(updated.amountMinor).toBe("5000");
+
+    const balAfterReplace = BigInt(await wallet.getBalance("u1"));
+    expect(balAfterReplace).toBe(balAfterPlace - 4000n);
+
+    const stored = await repo.getBetById(bet.betId);
+    expect(stored?.amountMinor).toBe("5000");
+  });
+
+  it("replaceBet no-op when amount unchanged", async () => {
+    const { service, roundId, wallet } = await buildContext();
+
+    const bet = await service.placeBet({ userId: "u1", roundId, amountMinor: "2000" });
+    const bal = await wallet.getBalance("u1");
+    const again = await service.replaceBet({ userId: "u1", roundId, amountMinor: "2000" });
+    expect(again.amountMinor).toBe("2000");
+    expect(await wallet.getBalance("u1")).toBe(bal);
+  });
+
+  it("replaceBet rejected after round starts", async () => {
+    const { service, roundId, engine } = await buildContext();
+
+    await service.placeBet({ userId: "u1", roundId, amountMinor: "1000" });
+    await engine.startRound(roundId);
+
+    await expect(service.replaceBet({ userId: "u1", roundId, amountMinor: "5000" })).rejects.toBeInstanceOf(BetValidationError);
+  });
+
   it("cashout before crash succeeds and credits payout", async () => {
     const { service, roundId, engine, wallet } = await buildContext();
 
@@ -190,7 +226,9 @@ describe("Crash betting and wallet flows", () => {
       reserveOrDebitBet: async () => {
         throw new InsufficientBalanceError();
       },
+      refundBetDebit: async () => undefined,
       creditPayout: async () => undefined,
+      creditDeposit: async () => undefined,
       getLedgerEntries: async () => []
     };
 

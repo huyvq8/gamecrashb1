@@ -48,7 +48,7 @@ export function CrashGame() {
     const payout = (amountMinor * scaledMultiplier) / 1_000_000n;
     return payout.toString();
   }, [canCashout, bet, multiplier]);
-  useCrashAudio(roundStatus, countdownValue);
+  useCrashAudio(roundStatus, countdownValue, roundStatus === "IN_PROGRESS" ? multiplier : null);
   const rewardAudio = useRewardAudio();
 
   // Drive countdown from server-provided timestamp when available

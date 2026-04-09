@@ -1,4 +1,10 @@
-import type { BetRecord, CrashHistoryResponse, CrashStateResponse, WalletBalanceResponse } from "../types/crash";
+import type {
+  BetRecord,
+  CrashHistoryResponse,
+  CrashStateResponse,
+  WalletBalanceResponse,
+  WalletDepositResponse
+} from "../types/crash";
 
 const API_BASE = "";
 
@@ -31,10 +37,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const apiClient = {
   getState: () => request<CrashStateResponse>("/game/crash/state"),
-  getHistory: () => request<CrashHistoryResponse>("/game/crash/history"),
+  /** Avoid stale cached GET after each round settle. */
+  getHistory: () =>
+    request<CrashHistoryResponse>("/game/crash/history", { cache: "no-store" }),
   placeBet: (body: { userId: string; roundId: string; amountMinor: string }) =>
     request<{ bet: BetRecord }>("/game/crash/bet", { method: "POST", body: JSON.stringify(body) }),
+  replaceBet: (body: { userId: string; roundId: string; amountMinor: string }) =>
+    request<{ bet: BetRecord }>("/game/crash/bet/replace", { method: "POST", body: JSON.stringify(body) }),
   cashout: (body: { userId: string; roundId: string }) =>
     request<{ bet: BetRecord }>("/game/crash/cashout", { method: "POST", body: JSON.stringify(body) }),
-  getBalance: (userId: string) => request<WalletBalanceResponse>(`/wallet/balance?userId=${encodeURIComponent(userId)}`)
+  getBalance: (userId: string) => request<WalletBalanceResponse>(`/wallet/balance?userId=${encodeURIComponent(userId)}`),
+  deposit: (body: { userId: string; amountMinor: string; clientRequestId?: string }) =>
+    request<WalletDepositResponse>("/wallet/deposit", { method: "POST", body: JSON.stringify(body) })
 };
