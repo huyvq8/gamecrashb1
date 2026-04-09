@@ -1,6 +1,8 @@
 /* Lock document scroll when Crash is mounted (no stray horizontal/vertical bars) */
 html:has(.crash-root),
+html:has(.crash-mobile-frame),
 body:has(.crash-root),
+body:has(.crash-mobile-frame),
 html.crash-shell,
 body.crash-shell {
   margin: 0;
@@ -10,10 +12,46 @@ body.crash-shell {
   overscroll-behavior: none;
 }
 #root:has(.crash-root),
+#root:has(.crash-mobile-frame),
 #root.crash-shell-root {
   height: 100%;
   max-height: 100dvh;
   overflow: hidden;
+}
+
+/* Letterbox: desktop / tablet chỉ thấy “máy” mobile; nền ngoài khung tối */
+#root.crash-shell-root:has(.crash-mobile-frame) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  min-height: 100svh;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 20%, rgba(30, 38, 58, 0.5), transparent 55%),
+    linear-gradient(165deg, #0a0d16 0%, #05060d 55%, #03040a 100%);
+}
+
+.crash-mobile-frame {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 430px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: max(10px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px))
+    max(10px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+}
+
+@media (max-width: 460px) {
+  .crash-mobile-frame {
+    max-width: none;
+    padding-left: max(0px, env(safe-area-inset-left, 0px));
+    padding-right: max(0px, env(safe-area-inset-right, 0px));
+  }
 }
 
 /* Root: one continuous spatial canvas (grid zones stay logical, not visual cards) */
@@ -32,9 +70,30 @@ body.crash-shell {
   overflow: hidden;
   touch-action: manipulation;
 }
+
+/* Trong khung mobile: chiều cao theo khung, bo góc + đổ bóng “máy” */
+.crash-mobile-frame .crash-root {
+  height: min(calc(100dvh - 20px), min(calc(100svh - 20px), 900px));
+  max-height: min(calc(100dvh - 20px), min(calc(100svh - 20px), 900px));
+  border-radius: 28px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 20px 60px rgba(0, 0, 0, 0.55),
+    0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 460px) {
+  .crash-mobile-frame .crash-root {
+    height: min(100dvh, 100svh);
+    max-height: min(100dvh, 100svh);
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
 .crash-root::before {
   content: "";
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;

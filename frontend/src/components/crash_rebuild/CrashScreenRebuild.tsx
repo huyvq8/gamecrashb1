@@ -253,6 +253,7 @@ export function CrashScreenRebuild() {
   const toastLive: "assertive" | "polite" = toast?.variant === "error" ? "assertive" : "polite";
 
   return (
+    <div className="crash-mobile-frame">
     <div
       className="crash-root"
       data-cashout-reward={cashoutReward ?? undefined}
@@ -333,6 +334,7 @@ export function CrashScreenRebuild() {
           lockedCashoutPayoutMinor={lockedCashoutPayoutMinor}
         />
       </div>
+    </div>
     </div>
   );
 }
