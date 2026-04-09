@@ -11,13 +11,19 @@ Trình duyệt chỉ cần mở **một origin** (ví dụ `https://domain/` qua
 
 ## 1. Build
 
+Chỉ cần **Node + npm** (không bắt buộc cài `pnpm` global). Cài dependency monorepo và build:
+
 ```bash
 cd gamecrashb1
-pnpm install
-pnpm -r build
+npx --yes pnpm@10 install
+npm run build
 ```
 
+Hoặc cài một lần: `npm install -g pnpm` rồi `pnpm install` và `pnpm -r build`.
+
 Backend chạy từ `backend/dist/index.js`. Frontend build ra `frontend/dist/`.
+
+**Lưu ý:** `backend/tsconfig.json` phải có `"outDir": "./dist"` (đã sửa trong repo). Nếu không, `tsc` có thể ghi nhầm sang `dist/` ở thư mục gốc → PM2 vẫn báo thiếu `backend\dist\index.js`.
 
 ## 2. Biến môi trường
 
