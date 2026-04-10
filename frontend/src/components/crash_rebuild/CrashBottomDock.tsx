@@ -61,6 +61,8 @@ export function CrashBottomDock(props: {
   countdownValue: number | null;
   selectionAmountMinor: string;
   placedBetAmountMinor: string | null;
+  /** Payout minor when bet is CASHED_OUT (from server bet record). */
+  placedBetPayoutMinor: string | null;
   placedBetStatus: "ACTIVE" | "CASHED_OUT" | "LOST" | "REJECTED" | null;
   livePayoutMinor: string | null;
   liveMultiplier: string | null;
@@ -81,6 +83,7 @@ export function CrashBottomDock(props: {
     countdownValue,
     selectionAmountMinor,
     placedBetAmountMinor,
+    placedBetPayoutMinor,
     placedBetStatus,
     livePayoutMinor,
     liveMultiplier,
@@ -123,9 +126,17 @@ export function CrashBottomDock(props: {
     payoutSmoothingActive,
     liveMultiplier
   );
+  const wonMinorForUi =
+    lockedCashoutPayoutMinor != null && lockedCashoutPayoutMinor !== ""
+      ? lockedCashoutPayoutMinor
+      : placedBetPayoutMinor != null && placedBetPayoutMinor !== ""
+        ? placedBetPayoutMinor
+        : null;
+
   /** Stake shown in capsule: during running, server committed amount; during countdown, draft selection when editing. */
   const stakeMinorForDisplay = (() => {
     if (phase === "running" || phase === "crashed" || phase === "result") {
+      if (placedBetStatus === "CASHED_OUT" && wonMinorForUi != null) return wonMinorForUi;
       if (placedBetAmountMinor) return placedBetAmountMinor;
     } else if (phase === "betting_open" || phase === "prepare") {
       if (placedBetAmountMinor) {
@@ -137,10 +148,16 @@ export function CrashBottomDock(props: {
   const stakeDisplayText = stakeMinorForDisplay != null ? money(stakeMinorForDisplay) : "—";
 
   const hasCommittedBet = !!placedBetAmountMinor;
-  const stakeCapsuleKind = phase === "running" && hasCommittedBet ? "inplay" : "next";
+  const inPlayRunning = phase === "running" && placedBetStatus === "ACTIVE" && hasCommittedBet;
+  const stakeCapsuleKind = inPlayRunning ? "inplay" : "next";
 
   const stakeContextLabel = (() => {
-    if (phase === "running" && hasCommittedBet) return "In Play";
+    if (phase === "running" || phase === "crashed" || phase === "result") {
+      if (placedBetStatus === "CASHED_OUT") {
+        return wonMinorForUi != null ? "Won" : "Cashed Out";
+      }
+    }
+    if (inPlayRunning) return "In Play";
     if (phase === "betting_open" || phase === "prepare") {
       if (stakeMinorForDisplay != null) return "Your Bet";
     }
@@ -205,7 +222,9 @@ export function CrashBottomDock(props: {
     ctaLabel = "Bet Placed";
   } else if (ctaMode === "cashedout") {
     ctaVisual = "done";
-    ctaLabel = "Cashed Out";
+    ctaLabel =
+      wonMinorForUi != null ? `Won: $${formatFullUsdFromMinor(wonMinorForUi)}` : "Cashed Out";
+    ctaAria = ctaLabel;
   } else {
     ctaVisual = "done";
     ctaLabel = "···";

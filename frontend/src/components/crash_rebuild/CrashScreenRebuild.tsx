@@ -143,7 +143,7 @@ export function CrashScreenRebuild() {
     audioState === "IN_PROGRESS" ? ui.liveMultiplier : null
   );
 
-  const chipsLocked = ui.phase === "running" && ui.placedBetStatus === "ACTIVE";
+  const chipsLocked = ui.hasCashedOut || (ui.phase === "running" && ui.hasActiveBet);
 
   const clearCashoutSeqTimers = useCallback(() => {
     cashoutSeqTimersRef.current.forEach((id) => clearTimeout(id));
@@ -259,6 +259,9 @@ export function CrashScreenRebuild() {
       data-cashout-reward={cashoutReward ?? undefined}
       data-cashout-reward-active={cashoutReward != null ? "1" : undefined}
     >
+      <div className="crash-scene-bleed" aria-hidden>
+        <CrashScene phase={ui.phase} liveMultiplier={ui.liveMultiplier} crashExplosionKey={crashExplosionKey} />
+      </div>
       <div className="crash-top">
         <CrashTopBar
           balanceMinor={balanceForTopBar}
@@ -278,7 +281,6 @@ export function CrashScreenRebuild() {
       ) : null}
 
       <div className="crash-center">
-        <CrashScene phase={ui.phase} liveMultiplier={ui.liveMultiplier} crashExplosionKey={crashExplosionKey} />
         <div className="crash-center-overlay">
           <CrashCenterDisplay
             phase={ui.phase}
@@ -320,6 +322,7 @@ export function CrashScreenRebuild() {
           countdownValue={ui.countdownValue}
           selectionAmountMinor={ui.selectionAmountMinor}
           placedBetAmountMinor={ui.placedBetAmountMinor}
+          placedBetPayoutMinor={ui.placedBetPayoutMinor}
           placedBetStatus={ui.placedBetStatus}
           livePayoutMinor={ui.livePayoutMinor}
           liveMultiplier={ui.liveMultiplier}

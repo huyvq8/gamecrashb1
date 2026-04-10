@@ -91,26 +91,19 @@ body.crash-shell {
   }
 }
 
-.crash-root::before {
-  content: "";
-  position: absolute;
-  inset: 0;
+/* Full-viewport space canvas (behind HUD); no second navy layer on ::before */
+.crash-scene-bleed {
+  grid-column: 1;
+  grid-row: 1 / -1;
   z-index: 0;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 150% 85% at 50% -5%, rgba(42, 62, 118, 0.5), transparent 42%),
-    radial-gradient(ellipse 110% 70% at 50% 108%, rgba(5, 10, 24, 0.92), transparent 50%),
-    radial-gradient(ellipse 75% 55% at 88% 22%, rgba(72, 40, 110, 0.2), transparent),
-    radial-gradient(ellipse 65% 50% at 10% 35%, rgba(28, 72, 130, 0.16), transparent),
-    radial-gradient(ellipse 95% 65% at 50% 45%, rgba(18, 32, 58, 0.4), transparent 72%),
-    linear-gradient(185deg, #050914 0%, #071020 32%, #06141c 55%, #03060e 100%);
-  animation: crashSpaceBreath 40s ease-in-out infinite alternate;
-}
-@keyframes crashSpaceBreath {
-  0% { filter: hue-rotate(0deg) brightness(1); }
-  100% { filter: hue-rotate(10deg) brightness(1.04); }
 }
 .crash-top {
+  grid-column: 1;
+  grid-row: 1;
   position: relative;
   z-index: 3;
   padding: 12px 16px 10px;
@@ -120,6 +113,8 @@ body.crash-shell {
   min-width: 0;
 }
 .crash-center {
+  grid-column: 1;
+  grid-row: 2;
   position: relative;
   z-index: 1;
   min-width: 0;
@@ -136,6 +131,8 @@ body.crash-shell {
   z-index: 3; /* ABOVE rocket */
 }
 .crash-bottom {
+  grid-column: 1;
+  grid-row: 3;
   position: relative;
   z-index: 2;
   padding: 14px 16px max(16px, env(safe-area-inset-bottom, 0px));
@@ -145,20 +142,9 @@ body.crash-shell {
   border-top: none;
   min-width: 0;
 }
-/* Soft “shelf” + thrust spill — same space, not a footer panel */
+/* No footer “shelf” — dock floats on shared space background */
 .crash-bottom::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -45%;
-  bottom: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 70% 45% at 50% 0%, rgba(255, 140, 80, 0.07), transparent 62%),
-    radial-gradient(ellipse 95% 70% at 50% 100%, rgba(12, 22, 48, 0.55), transparent 68%),
-    linear-gradient(to top, rgba(3, 6, 14, 0.72) 0%, rgba(5, 10, 22, 0.28) 45%, transparent 82%);
+  display: none;
 }
 .crash-bottom > .bottom-dock {
   position: relative;
@@ -170,21 +156,7 @@ body.crash-shell {
   position: relative;
 }
 .crash-topbar::before {
-  content: "";
-  position: absolute;
-  left: -10px;
-  right: -10px;
-  top: -8px;
-  bottom: -8px;
-  z-index: -1;
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(8, 14, 32, 0.38), rgba(5, 10, 22, 0.08));
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  display: none;
 }
 .crash-topbar-header {
   display: flex;
@@ -801,6 +773,10 @@ body.crash-shell {
   width: 200px;
   height: 280px;
   z-index: 2;
+}
+/* Scene fills full viewport; keep rocket in the former “middle band” visually */
+.crash-scene-bleed .rocket-wrap {
+  top: 56%;
 }
 .rocket-bob {
   position: relative;

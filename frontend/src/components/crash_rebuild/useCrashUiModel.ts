@@ -50,7 +50,13 @@ export interface CrashUiModel {
   selectionAmountMinor: string;
   activeBetAmountMinor: string | null;
   placedBetAmountMinor: string | null;
+  /** Settled payout (cents) when status is CASHED_OUT; for Won / capsule display. */
+  placedBetPayoutMinor: string | null;
   placedBetStatus: "ACTIVE" | "CASHED_OUT" | "LOST" | "REJECTED" | null;
+  /** True while current round bet is ACTIVE (in play, can cash out). */
+  hasActiveBet: boolean;
+  /** True after successful cashout for this round until round settles. */
+  hasCashedOut: boolean;
   livePayoutMinor: string | null;
   balanceMinor: string;
   history: HistoryItem[];
@@ -503,7 +509,10 @@ export function useCrashUiModel(sound?: CrashUiSoundHooks | null): CrashUiModel 
     selectionAmountMinor: betSelectionAmountMinor,
     activeBetAmountMinor: activeBet?.status === "ACTIVE" ? activeBet.amountMinor : null,
     placedBetAmountMinor: activeBet ? activeBet.amountMinor : null,
+    placedBetPayoutMinor: activeBet?.status === "CASHED_OUT" ? activeBet.payoutAmountMinor ?? null : null,
     placedBetStatus: activeBet ? activeBet.status : null,
+    hasActiveBet: committedActiveThisRound,
+    hasCashedOut: activeBet?.status === "CASHED_OUT" && activeBet.roundId === activeRound?.roundId,
     livePayoutMinor,
     balanceMinor,
     history,
